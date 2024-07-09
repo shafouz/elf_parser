@@ -1,6 +1,6 @@
 CC = clang 
 
-CFLAGS=-g -O0 -fsanitize=address,undefined -I/usr/include
+CFLAGS=-g -O0 -fsanitize=address,undefined -I./include -I/usr/include
 
 SRC = $(wildcard src/*.c)
 OBJ = $(SRC:.c=.o)

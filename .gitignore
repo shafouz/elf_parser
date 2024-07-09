@@ -2,6 +2,8 @@ compile_commands.json
 elf_parser
 .gdb_history
 .cache
+example
 lab
 lab.c
+example_asm
 *.o

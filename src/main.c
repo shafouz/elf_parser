@@ -1,5 +1,6 @@
 #include <alloca.h>
 #include <assert.h>
+#include <elf.h>
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -7,7 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <elf.h>
 
 #define E_NHDR 64   /* Header size */
 #define E_NIDENT 16 /* Ident size */
@@ -31,19 +31,19 @@ typedef struct {
 
 typedef struct {
   e_ident ident;
-  u_short e_type;
-  u_short e_machine;
-  u_int e_version;
-  void *e_entry;
-  u_long e_phoff;
-  u_long e_shoff;
-  u_int e_flags;
-  u_short e_ehsize;
-  u_short e_phentsize;
-  u_short e_phnum;
-  u_short e_shentsize;
-  u_short e_shnum;
-  u_short e_shstrndx;
+  Elf64_Half e_type;
+  Elf64_Half e_machine;
+  Elf64_Word e_version;
+  Elf64_Addr *e_entry;
+  Elf64_Off e_phoff;
+  Elf64_Off e_shoff;
+  Elf64_Word e_flags;
+  Elf64_Half e_ehsize;
+  Elf64_Half e_phentsize;
+  Elf64_Half e_phnum;
+  Elf64_Half e_shentsize;
+  Elf64_Half e_shnum;
+  Elf64_Half e_shstrndx;
 } e_header;
 
 void err_msg(const char *msg) {
@@ -153,56 +153,112 @@ e_ident parse_ident(stream *stream) {
   return ident;
 }
 
-e_header parse_header(stream *stream) {
+e_header parse_elf_header(stream *stream) {
   e_ident ident = parse_ident(stream);
   assert(stream->curr == E_NIDENT);
 
-  e_header header = {};
-
-  u_short e_type;
+  Elf64_Half e_type;
   memcpy(&e_type, stream->data, sizeof(e_type));
-
   switch (e_type) {
   case ET_NONE:
-    header.e_type = ET_NONE;
-    break;
   case ET_REL:
-    header.e_type = ET_REL;
-    break;
   case ET_EXEC:
-    header.e_type = ET_EXEC;
-    break;
   case ET_DYN:
-    header.e_type = ET_DYN;
-    break;
   case ET_CORE:
-    header.e_type = ET_CORE;
-    break;
   case ET_NUM:
-    header.e_type = ET_NUM;
-    break;
   case ET_LOOS:
-    header.e_type = ET_LOOS;
-    break;
   case ET_HIOS:
-    header.e_type = ET_HIOS;
-    break;
   case ET_LOPROC:
-    header.e_type = ET_LOPROC;
-    break;
   case ET_HIPROC:
-    header.e_type = ET_HIPROC;
     break;
   default:
     err_msg("Invalid E_TYPE.");
   }
-  advance_str(stream, sizeof(u_short));
+  advance_str(stream, sizeof(e_type));
+
+  // only 32 or 64
+  Elf64_Half e_machine;
+  memcpy(&e_machine, stream->data, sizeof(e_machine));
+  switch (e_machine) {
+  case EM_NONE:
+  case EM_386:
+  case EM_X86_64:
+    break;
+  default:
+    err_msg("Invalid E_MACHINE.");
+  }
+  advance_str(stream, sizeof(e_machine));
+
+  Elf64_Word e_version;
+  memcpy(&e_version, stream->data, sizeof(e_version));
+  if (e_version != 1) {
+    err_msg("Invalid E_VERSION.");
+  }
+  advance_str(stream, sizeof(e_version));
+
+  // any value
+  Elf64_Addr *e_entry;
+  memcpy(&e_entry, stream->data, sizeof(e_entry));
+  advance_str(stream, sizeof(e_entry));
+
+  Elf64_Off e_phoff;
+  memcpy(&e_phoff, stream->data, sizeof(e_phoff));
+  advance_str(stream, sizeof(e_phoff));
+
+  Elf64_Off e_shoff = 0;
+  memcpy(&e_shoff, stream->data, sizeof(e_shoff));
+  advance_str(stream, sizeof(e_shoff));
+
+  Elf64_Word e_flags = 0;
+  memcpy(&e_flags, stream->data, sizeof(e_flags));
+  advance_str(stream, sizeof(e_flags));
+
+  Elf64_Half e_ehsize = 0;
+  memcpy(&e_ehsize, stream->data, sizeof(e_ehsize));
+  advance_str(stream, sizeof(e_ehsize));
+
+  Elf64_Half e_phentsize = 0;
+  memcpy(&e_phentsize, stream->data, sizeof(e_phentsize));
+  advance_str(stream, sizeof(e_phentsize));
+
+  Elf64_Half e_phnum = 0;
+  memcpy(&e_phnum, stream->data, sizeof(e_phnum));
+  advance_str(stream, sizeof(e_phnum));
+
+  Elf64_Half e_shentsize = 0;
+  memcpy(&e_shentsize, stream->data, sizeof(e_shentsize));
+  advance_str(stream, sizeof(e_shentsize));
+
+  Elf64_Half e_shnum = 0;
+  memcpy(&e_shnum, stream->data, sizeof(e_shnum));
+  advance_str(stream, sizeof(e_shnum));
+
+  Elf64_Half e_shstrndx = 0;
+  memcpy(&e_shstrndx, stream->data, sizeof(e_shstrndx));
+  advance_str(stream, sizeof(e_shstrndx));
+
+  e_header header = {.e_type = e_type,
+                     .e_machine = e_machine,
+                     .e_version = e_version,
+                     .e_entry = e_entry,
+                     .e_phoff = e_phoff,
+                     .e_shoff = e_shoff,
+                     .e_flags = e_flags,
+                     .e_ehsize = e_ehsize,
+                     .e_phentsize = e_phentsize,
+                     .e_phnum = e_phnum,
+                     .e_shentsize = e_shentsize,
+                     .e_shnum = e_shnum,
+                     .e_shstrndx = e_shstrndx};
 
   return header;
 }
 
 void *parse_elf(stream *stream) {
-  e_header header = parse_header(stream);
+  e_header header = parse_elf_header(stream);
+  assert(stream->curr == 0x40);
+
+  // __builtin_dump_struct(&header, &printf);
   // e_ident ident = parse_ident(stream);
 
   return NULL;
